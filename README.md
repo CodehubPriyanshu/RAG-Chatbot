@@ -5,7 +5,7 @@ A production-ready Retrieval-Augmented Generation (RAG) chatbot built with Pytho
 ## 🎯 Project Overview
 
 This RAG chatbot system allows users to query customer transaction data using natural language. It leverages:
-- **SentenceTransformers with ONNX Runtime** for creating semantic embeddings (compatible with Streamlit Cloud)
+- **SentenceTransformers** for creating semantic embeddings (compatible with Streamlit Cloud)
 - **Numpy-based cosine similarity** for retrieving relevant transactions
 - **Streamlit** for an interactive web interface
 - **Context-aware answer generation** that prevents hallucination
@@ -61,7 +61,7 @@ rag_chatbot/
    pip install -r requirements.txt
    ```
 
-   Note: The first run will download the SentenceTransformer model (`Xenova/all-MiniLM-L6-v2`), which may take a few minutes.
+   Note: The first run will download the SentenceTransformer model (`all-MiniLM-L6-v2`), which may take a few minutes.
 
 ## 🏃 How to Run
 
@@ -108,7 +108,7 @@ The chatbot follows this RAG (Retrieval-Augmented Generation) workflow:
 1. **Data Loading**: Transactions are loaded from `transactions.json`
 2. **Text Preprocessing**: Each transaction is converted to a descriptive string
    - Example: "On 2024-01-12, Amit purchased a Laptop for 55000."
-3. **Embedding Creation**: All transaction texts are converted to embeddings using SentenceTransformer with ONNX Runtime
+3. **Embedding Creation**: All transaction texts are converted to embeddings using SentenceTransformer
 4. **Query Processing**: User's question is converted to an embedding
 5. **Retrieval**: Cosine similarity finds the top-k most relevant transactions
 6. **Answer Generation**: The chatbot generates an answer using only the retrieved context
@@ -136,7 +136,7 @@ The chatbot can handle various types of questions:
 
 - **`chatbot.py`**: Contains all RAG logic
   - `load_and_prepare()`: Loads and formats transaction data with error handling
-  - `create_embeddings()`: Generates embeddings using SentenceTransformer with ONNX Runtime
+  - `create_embeddings()`: Generates embeddings using SentenceTransformer
   - `retrieve_transactions()`: Performs cosine similarity search with validation
   - `generate_answer()`: Generates context-aware answers with fallbacks
   - `initialize_rag_system()`: Initializes the complete RAG system with error handling
@@ -156,9 +156,9 @@ The chatbot can handle various types of questions:
 
 ### Model Information
 
-- **Embedding Model**: `Xenova/all-MiniLM-L6-v2` (SentenceTransformer with ONNX Runtime)
-  - Pure Python implementation compatible with Streamlit Cloud
-  - No PyTorch dependencies
+- **Embedding Model**: `all-MiniLM-L6-v2` (SentenceTransformer)
+  - Standard PyTorch implementation
+  - CPU-compatible
   - Lightweight and fast
   - 384-dimensional embeddings
 
@@ -174,8 +174,8 @@ The chatbot remembers your last question. Click "Use Last Question" to quickly r
 
 This version is specifically optimized for deployment on Streamlit Cloud:
 
-- **No PyTorch Dependencies**: Removed all PyTorch-related packages that are incompatible with Streamlit Cloud
-- **ONNX Runtime**: Uses pure Python ONNX runtime for model inference
+- **PyTorch CPU-only**: Uses PyTorch CPU builds for compatibility
+- **Standard SentenceTransformer**: Uses standard models that work on Streamlit Cloud
 - **Pure Python Implementation**: All computations use NumPy instead of specialized libraries
 - **Minimal Dependencies**: Only essential packages that work on Streamlit Cloud
 
@@ -201,5 +201,3 @@ Feel free to extend this project with additional features:
 ## 📧 Support
 
 For questions or issues, please refer to the code comments or create an issue in the repository.
-
----

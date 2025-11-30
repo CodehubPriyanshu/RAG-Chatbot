@@ -11,19 +11,19 @@ def test_imports():
     print("Testing imports...")
     try:
         import sentence_transformers
-        import onnxruntime
-        print("✓ sentence_transformers and onnxruntime imported successfully")
+        import torch
+        print("✓ sentence_transformers and torch imported successfully")
         return True
     except Exception as e:
         print(f"✗ Import failed: {e}")
         return False
 
 def test_sentence_transformer_model():
-    """Test that we can load a sentence transformer model with ONNX runtime"""
+    """Test that we can load a standard sentence transformer model"""
     print("\nTesting sentence transformer model loading...")
     try:
-        model = sentence_transformers.SentenceTransformer('Xenova/all-MiniLM-L6-v2', trust_remote_code=True)
-        print("✓ Xenova SentenceTransformer model loaded successfully")
+        model = sentence_transformers.SentenceTransformer('all-MiniLM-L6-v2')
+        print("✓ Standard SentenceTransformer model loaded successfully")
         
         # Test encoding
         texts = ["This is a test sentence.", "This is another test sentence."]

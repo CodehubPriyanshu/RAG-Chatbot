@@ -1,6 +1,16 @@
 """
 RAG Chatbot Core Logic
 Handles data loading, embedding creation, retrieval, and answer generation.
+
+Why "Xenova/all-MiniLM-L6-v2" failed:
+- It's an ONNX model repository, not a standard SentenceTransformer PyTorch model
+- It lacks required files like pytorch_model.bin or model.safetensors
+- Standard SentenceTransformer expects specific file structures
+
+Why "all-MiniLM-L6-v2" works:
+- It's a standard SentenceTransformer model with proper PyTorch weights
+- Compatible with CPU-only environments
+- Works with the standard SentenceTransformer loading mechanism
 """
 
 import json
@@ -11,6 +21,9 @@ from typing import List, Dict, Tuple
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Model configuration
+MODEL_NAME = "all-MiniLM-L6-v2"
 
 def load_and_prepare(json_path: str = "transactions.json") -> Tuple[List[Dict], List[str]]:
     """
@@ -45,13 +58,12 @@ def load_and_prepare(json_path: str = "transactions.json") -> Tuple[List[Dict], 
         logger.error(f"Unexpected error loading transaction data: {e}")
         return [], []
 
-def create_embeddings(texts: List[str], model_name: str = "Xenova/all-MiniLM-L6-v2") -> Tuple[object, np.ndarray]:
+def create_embeddings(texts: List[str]) -> Tuple[object, np.ndarray]:
     """
-    Create embeddings for transaction texts using SentenceTransformer with ONNX runtime.
+    Create embeddings for transaction texts using SentenceTransformer.
     
     Args:
         texts: List of text descriptions to embed
-        model_name: Name of the SentenceTransformer model to use (ONNX compatible)
         
     Returns:
         Tuple of (model, embeddings)
@@ -60,12 +72,29 @@ def create_embeddings(texts: List[str], model_name: str = "Xenova/all-MiniLM-L6-
     """
     try:
         from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(model_name, trust_remote_code=True)
-        embeddings = model.encode(texts, convert_to_numpy=True)
+        model = SentenceTransformer(MODEL_NAME)
+        embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         return model, embeddings
     except Exception as e:
-        logger.error(f"Error creating embeddings with model {model_name}: {e}")
+        logger.error(f"Error creating embeddings with model {MODEL_NAME}: {e}")
         raise
+
+def cosine_similarity_matrix(query_emb, doc_embs):
+    """
+    Calculate cosine similarity between query embedding and document embeddings.
+    
+    Args:
+        query_emb: Query embedding vector (d,)
+        doc_embs: Document embeddings matrix (n, d)
+        
+    Returns:
+        Similarity scores array (n,)
+    """
+    # Normalize vectors for cosine similarity calculation
+    query_norm = query_emb / np.linalg.norm(query_emb)
+    doc_norms = doc_embs / np.linalg.norm(doc_embs, axis=1, keepdims=True)
+    sims = doc_norms @ query_norm
+    return sims
 
 def retrieve_transactions(query: str, model: object, embeddings: np.ndarray, 
                          texts: List[str], top_k: int = 3) -> List[Tuple[str, float]]:
@@ -95,13 +124,8 @@ def retrieve_transactions(query: str, model: object, embeddings: np.ndarray,
         # Encode the query
         query_embedding = model.encode([query], convert_to_numpy=True)
         
-        # Calculate cosine similarity using numpy
-        # Normalize vectors for cosine similarity calculation
-        query_norm = query_embedding / np.linalg.norm(query_embedding, axis=1, keepdims=True)
-        embeddings_norm = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
-        
         # Calculate cosine similarity
-        similarities = np.dot(query_norm, embeddings_norm.T)[0]
+        similarities = cosine_similarity_matrix(query_embedding[0], embeddings)
         
         # Get top-k indices
         top_indices = np.argsort(similarities)[::-1][:min(top_k, len(similarities))]
