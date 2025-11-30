@@ -9,6 +9,7 @@ This RAG chatbot system allows users to query customer transaction data using na
 - **Cosine similarity** for retrieving relevant transactions
 - **Streamlit** for an interactive web interface
 - **Context-aware answer generation** that prevents hallucination
+- **Comprehensive error handling** for robust operation
 
 ## ✨ Features
 
@@ -18,6 +19,8 @@ This RAG chatbot system allows users to query customer transaction data using na
 4. **Memory Feature**: "Show my last question" functionality
 5. **Monthly Spending Chart**: Visual representation of spending patterns
 6. **Clean UI**: Modern, user-friendly Streamlit interface
+7. **Robust Error Handling**: Comprehensive error handling throughout the application
+8. **Logging**: Detailed logging for debugging and monitoring
 
 ## 📁 Project Structure
 
@@ -78,6 +81,26 @@ rag_chatbot/
    - Try: "What is Amit's total spending?"
    - Try: "List all February transactions"
 
+## 🔧 Error Handling & Robustness
+
+This updated version includes comprehensive error handling:
+
+### Error Handling Features
+
+1. **File Operations**: Graceful handling of missing or corrupted JSON files
+2. **Data Processing**: Validation and error handling for transaction data
+3. **Model Initialization**: Proper error reporting for model loading issues
+4. **Query Processing**: Safe handling of malformed queries
+5. **UI Components**: Error boundaries in the Streamlit interface
+6. **Logging**: Detailed logging for debugging and monitoring
+
+### Error Recovery
+
+- The application gracefully handles missing files
+- Invalid data formats are caught and reported
+- Model initialization errors are clearly communicated
+- UI continues to function even if individual components fail
+
 ## 🔄 RAG Workflow
 
 The chatbot follows this RAG (Retrieval-Augmented Generation) workflow:
@@ -112,21 +135,24 @@ The chatbot can handle various types of questions:
 ### Core Components
 
 - **`chatbot.py`**: Contains all RAG logic
-  - `load_and_prepare()`: Loads and formats transaction data
-  - `create_embeddings()`: Generates embeddings using SentenceTransformer
-  - `retrieve_transactions()`: Performs cosine similarity search
-  - `generate_answer()`: Generates context-aware answers
+  - `load_and_prepare()`: Loads and formats transaction data with error handling
+  - `create_embeddings()`: Generates embeddings using SentenceTransformer with error handling
+  - `retrieve_transactions()`: Performs cosine similarity search with validation
+  - `generate_answer()`: Generates context-aware answers with fallbacks
+  - `initialize_rag_system()`: Initializes the complete RAG system with error handling
 
 - **`app.py`**: Streamlit UI
-  - Interactive query interface
+  - Interactive query interface with error handling
   - Memory feature (last question)
-  - Monthly spending visualization
+  - Monthly spending visualization with error handling
   - Response display with context
+  - Session state management
 
 - **`utils.py`**: Helper functions
   - Currency formatting
-  - Data filtering utilities
-  - Calculation helpers
+  - Data filtering utilities with error handling
+  - Calculation helpers with error handling
+  - Logging for debugging
 
 ### Model Information
 
@@ -142,29 +168,6 @@ The app includes a bar chart showing total spending per month, automatically gen
 ## 💾 Memory Feature
 
 The chatbot remembers your last question. Click "Use Last Question" to quickly re-ask it, or view it in the info box at the top of the interface.
-
-## 🔧 Customization
-
-### Adding More Transactions
-
-Edit `transactions.json` to add more transaction data. The format is:
-```json
-{
-  "id": 6,
-  "customer": "CustomerName",
-  "product": "ProductName",
-  "amount": 10000,
-  "date": "2024-04-15"
-}
-```
-
-### Adjusting Retrieval
-
-Modify the `top_k` parameter in `retrieve_transactions()` to retrieve more or fewer relevant transactions.
-
-### Changing the Model
-
-Update the `model_name` parameter in `create_embeddings()` to use a different SentenceTransformer model.
 
 ## 📝 License
 
@@ -186,4 +189,3 @@ For questions or issues, please refer to the code comments or create an issue in
 ---
 
 **Built with ❤️ using Python, Streamlit, and SentenceTransformers**
-

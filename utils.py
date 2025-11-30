@@ -4,9 +4,13 @@ Helper functions for data processing and formatting.
 """
 
 import json
+import logging
 from typing import List, Dict
 from datetime import datetime
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def format_currency(amount: int) -> str:
     """
@@ -20,7 +24,6 @@ def format_currency(amount: int) -> str:
     """
     return f"₹{amount:,}"
 
-
 def filter_transactions_by_customer(data: List[Dict], customer_name: str) -> List[Dict]:
     """
     Filter transactions by customer name (case-insensitive).
@@ -32,8 +35,11 @@ def filter_transactions_by_customer(data: List[Dict], customer_name: str) -> Lis
     Returns:
         Filtered list of transactions
     """
-    return [t for t in data if t['customer'].lower() == customer_name.lower()]
-
+    try:
+        return [t for t in data if t['customer'].lower() == customer_name.lower()]
+    except Exception as e:
+        logger.error(f"Error filtering transactions by customer: {e}")
+        return []
 
 def filter_transactions_by_month(data: List[Dict], year: int, month: int) -> List[Dict]:
     """
@@ -47,13 +53,20 @@ def filter_transactions_by_month(data: List[Dict], year: int, month: int) -> Lis
     Returns:
         Filtered list of transactions
     """
-    filtered = []
-    for transaction in data:
-        date_obj = datetime.strptime(transaction['date'], "%Y-%m-%d")
-        if date_obj.year == year and date_obj.month == month:
-            filtered.append(transaction)
-    return filtered
-
+    try:
+        filtered = []
+        for transaction in data:
+            try:
+                date_obj = datetime.strptime(transaction['date'], "%Y-%m-%d")
+                if date_obj.year == year and date_obj.month == month:
+                    filtered.append(transaction)
+            except ValueError as ve:
+                logger.warning(f"Invalid date format in transaction {transaction.get('id', 'unknown')}: {ve}")
+                continue
+        return filtered
+    except Exception as e:
+        logger.error(f"Error filtering transactions by month: {e}")
+        return []
 
 def calculate_total_spending(data: List[Dict], customer_name: str = None) -> int:
     """
@@ -66,11 +79,14 @@ def calculate_total_spending(data: List[Dict], customer_name: str = None) -> int
     Returns:
         Total spending amount
     """
-    if customer_name:
-        filtered = filter_transactions_by_customer(data, customer_name)
-        return sum(t['amount'] for t in filtered)
-    return sum(t['amount'] for t in data)
-
+    try:
+        if customer_name:
+            filtered = filter_transactions_by_customer(data, customer_name)
+            return sum(t['amount'] for t in filtered)
+        return sum(t['amount'] for t in data)
+    except Exception as e:
+        logger.error(f"Error calculating total spending: {e}")
+        return 0
 
 def get_customer_list(data: List[Dict]) -> List[str]:
     """
@@ -82,5 +98,8 @@ def get_customer_list(data: List[Dict]) -> List[str]:
     Returns:
         List of unique customer names
     """
-    return sorted(list(set(t['customer'] for t in data)))
-
+    try:
+        return sorted(list(set(t['customer'] for t in data)))
+    except Exception as e:
+        logger.error(f"Error getting customer list: {e}")
+        return []

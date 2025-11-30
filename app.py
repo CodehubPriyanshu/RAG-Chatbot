@@ -6,10 +6,14 @@ Provides interactive interface with memory feature and monthly spending chart.
 import streamlit as st
 import matplotlib.pyplot as plt
 import pandas as pd
+import logging
 from datetime import datetime
 from chatbot import initialize_rag_system, retrieve_transactions, generate_answer
 import json
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Page configuration
 st.set_page_config(
@@ -31,13 +35,26 @@ if 'texts' not in st.session_state:
     st.session_state.texts = None
 if 'raw_data' not in st.session_state:
     st.session_state.raw_data = None
-
+if 'error_message' not in st.session_state:
+    st.session_state.error_message = None
 
 def load_transaction_data():
     """Load transaction data from JSON file."""
-    with open("transactions.json", 'r', encoding='utf-8') as f:
-        return json.load(f)
-
+    try:
+        with open("transactions.json", 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        st.error("❌ Transaction data file not found. Please ensure 'transactions.json' exists.")
+        logger.error("Transaction data file not found")
+        return []
+    except json.JSONDecodeError as e:
+        st.error(f"❌ Error reading transaction data: Invalid JSON format.")
+        logger.error(f"Error decoding JSON file: {e}")
+        return []
+    except Exception as e:
+        st.error(f"❌ Unexpected error loading transaction data: {str(e)}")
+        logger.error(f"Unexpected error loading transaction data: {e}")
+        return []
 
 def create_monthly_spending_chart(data):
     """
@@ -46,39 +63,55 @@ def create_monthly_spending_chart(data):
     Args:
         data: List of transaction dictionaries
     """
-    # Convert to DataFrame for easier manipulation
-    df = pd.DataFrame(data)
-    df['date'] = pd.to_datetime(df['date'])
-    df['month'] = df['date'].dt.to_period('M').astype(str)
-    
-    # Group by month and sum amounts
-    monthly_spending = df.groupby('month')['amount'].sum().reset_index()
-    monthly_spending.columns = ['Month', 'Total Amount']
-    
-    # Create the chart
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.bar(monthly_spending['Month'], monthly_spending['Total Amount'], 
-           color='steelblue', edgecolor='navy', alpha=0.7)
-    ax.set_xlabel('Month', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Total Spending (₹)', fontsize=12, fontweight='bold')
-    ax.set_title('Monthly Spending Overview', fontsize=14, fontweight='bold', pad=20)
-    ax.grid(axis='y', alpha=0.3, linestyle='--')
-    
-    # Add value labels on bars
-    for i, v in enumerate(monthly_spending['Total Amount']):
-        ax.text(i, v, f'₹{v:,}', ha='center', va='bottom', fontweight='bold')
-    
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    return fig
-
+    try:
+        if not data:
+            st.warning("No transaction data available for chart.")
+            return None
+            
+        # Convert to DataFrame for easier manipulation
+        df = pd.DataFrame(data)
+        if df.empty:
+            st.warning("No transaction data available for chart.")
+            return None
+            
+        df['date'] = pd.to_datetime(df['date'])
+        df['month'] = df['date'].dt.to_period('M').astype(str)
+        
+        # Group by month and sum amounts
+        monthly_spending = df.groupby('month')['amount'].sum().reset_index()
+        monthly_spending.columns = ['Month', 'Total Amount']
+        
+        # Create the chart
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.bar(monthly_spending['Month'], monthly_spending['Total Amount'], 
+               color='steelblue', edgecolor='navy', alpha=0.7)
+        ax.set_xlabel('Month', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Total Spending (₹)', fontsize=12, fontweight='bold')
+        ax.set_title('Monthly Spending Overview', fontsize=14, fontweight='bold', pad=20)
+        ax.grid(axis='y', alpha=0.3, linestyle='--')
+        
+        # Add value labels on bars
+        for i, v in enumerate(monthly_spending['Total Amount']):
+            ax.text(i, v, f'₹{v:,}', ha='center', va='bottom', fontweight='bold')
+        
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        return fig
+    except Exception as e:
+        st.error(f"❌ Error creating monthly spending chart: {str(e)}")
+        logger.error(f"Error creating monthly spending chart: {e}")
+        return None
 
 # Initialize RAG system (only once)
 @st.cache_resource
 def initialize_rag():
     """Initialize RAG system with caching to avoid reloading."""
-    return initialize_rag_system()
-
+    try:
+        return initialize_rag_system()
+    except Exception as e:
+        st.error(f"❌ Failed to initialize RAG system: {str(e)}")
+        logger.error(f"Error initializing RAG system: {e}")
+        raise
 
 # Main UI
 def main():
@@ -93,13 +126,23 @@ def main():
     - "List all February transactions"
     """)
     
+    # Display any error messages
+    if st.session_state.error_message:
+        st.error(st.session_state.error_message)
+        st.session_state.error_message = None
+    
     # Initialize RAG system
     if not st.session_state.rag_initialized:
-        with st.spinner("Loading transaction data and initializing AI model..."):
-            st.session_state.model, st.session_state.embeddings, \
-            st.session_state.texts, st.session_state.raw_data = initialize_rag()
-            st.session_state.rag_initialized = True
-        st.success("✅ System ready!")
+        try:
+            with st.spinner("Loading transaction data and initializing AI model..."):
+                st.session_state.model, st.session_state.embeddings, \
+                st.session_state.texts, st.session_state.raw_data = initialize_rag()
+                st.session_state.rag_initialized = True
+            st.success("✅ System ready!")
+        except Exception as e:
+            st.session_state.error_message = f"Failed to initialize system: {str(e)}. Please check the logs."
+            st.error(st.session_state.error_message)
+            return
     
     st.markdown("---")
     
@@ -130,43 +173,56 @@ def main():
     if submit_button and user_query:
         st.session_state.last_question = user_query
         
-        with st.spinner("Searching transaction data..."):
-            # Retrieve relevant transactions
-            context = retrieve_transactions(
-                user_query,
-                st.session_state.model,
-                st.session_state.embeddings,
-                st.session_state.texts,
-                top_k=3
-            )
+        try:
+            with st.spinner("Searching transaction data..."):
+                # Retrieve relevant transactions
+                context = retrieve_transactions(
+                    user_query,
+                    st.session_state.model,
+                    st.session_state.embeddings,
+                    st.session_state.texts,
+                    top_k=3
+                )
+                
+                # Generate answer
+                answer = generate_answer(
+                    user_query,
+                    context,
+                    st.session_state.raw_data
+                )
             
-            # Generate answer
-            answer = generate_answer(
-                user_query,
-                context,
-                st.session_state.raw_data
-            )
-        
-        # Display answer
-        st.markdown("---")
-        st.subheader("🤖 Chatbot Response")
-        st.markdown(f"**Question:** {user_query}")
-        st.markdown(f"**Answer:**")
-        st.success(answer)
-        
-        # Show retrieved context (optional, for debugging/transparency)
-        with st.expander("📋 View Retrieved Context"):
-            st.write("Top relevant transactions:")
-            for i, (text, score) in enumerate(context, 1):
-                st.write(f"{i}. {text} (similarity: {score:.3f})")
+            # Display answer
+            st.markdown("---")
+            st.subheader("🤖 Chatbot Response")
+            st.markdown(f"**Question:** {user_query}")
+            st.markdown(f"**Answer:**")
+            st.success(answer)
+            
+            # Show retrieved context (optional, for debugging/transparency)
+            with st.expander("📋 View Retrieved Context"):
+                st.write("Top relevant transactions:")
+                for i, (text, score) in enumerate(context, 1):
+                    st.write(f"{i}. {text} (similarity: {score:.3f})")
+        except Exception as e:
+            error_msg = f"An error occurred while processing your query: {str(e)}"
+            st.error(f"❌ {error_msg}")
+            logger.error(f"Error processing query '{user_query}': {e}")
     
     st.markdown("---")
     
     # Monthly spending chart
     st.subheader("📊 Monthly Spending Chart")
-    transaction_data = load_transaction_data()
-    chart_fig = create_monthly_spending_chart(transaction_data)
-    st.pyplot(chart_fig)
+    try:
+        transaction_data = load_transaction_data()
+        if transaction_data:
+            chart_fig = create_monthly_spending_chart(transaction_data)
+            if chart_fig:
+                st.pyplot(chart_fig)
+        else:
+            st.info("No transaction data available to display chart.")
+    except Exception as e:
+        st.error(f"❌ Error displaying monthly spending chart: {str(e)}")
+        logger.error(f"Error displaying monthly spending chart: {e}")
     
     # Footer
     st.markdown("---")
@@ -176,7 +232,5 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
-
 if __name__ == "__main__":
     main()
-
