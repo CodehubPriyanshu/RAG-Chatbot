@@ -6,8 +6,6 @@ Handles data loading, embedding creation, retrieval, and answer generation.
 import json
 import logging
 import numpy as np
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 from typing import List, Dict, Tuple
 
 # Set up logging
@@ -47,13 +45,13 @@ def load_and_prepare(json_path: str = "transactions.json") -> Tuple[List[Dict], 
         logger.error(f"Unexpected error loading transaction data: {e}")
         return [], []
 
-def create_embeddings(texts: List[str], model_name: str = "all-MiniLM-L6-v2") -> Tuple[SentenceTransformer, np.ndarray]:
+def create_embeddings(texts: List[str], model_name: str = "Xenova/all-MiniLM-L6-v2") -> Tuple[object, np.ndarray]:
     """
-    Create embeddings for transaction texts using SentenceTransformer.
+    Create embeddings for transaction texts using SentenceTransformer with ONNX runtime.
     
     Args:
         texts: List of text descriptions to embed
-        model_name: Name of the SentenceTransformer model to use
+        model_name: Name of the SentenceTransformer model to use (ONNX compatible)
         
     Returns:
         Tuple of (model, embeddings)
@@ -61,14 +59,15 @@ def create_embeddings(texts: List[str], model_name: str = "all-MiniLM-L6-v2") ->
         - embeddings: numpy array of embeddings (n_samples, embedding_dim)
     """
     try:
-        model = SentenceTransformer(model_name)
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(model_name, trust_remote_code=True)
         embeddings = model.encode(texts, convert_to_numpy=True)
         return model, embeddings
     except Exception as e:
         logger.error(f"Error creating embeddings with model {model_name}: {e}")
         raise
 
-def retrieve_transactions(query: str, model: SentenceTransformer, embeddings: np.ndarray, 
+def retrieve_transactions(query: str, model: object, embeddings: np.ndarray, 
                          texts: List[str], top_k: int = 3) -> List[Tuple[str, float]]:
     """
     Retrieve top-k most relevant transactions using cosine similarity.
@@ -96,8 +95,13 @@ def retrieve_transactions(query: str, model: SentenceTransformer, embeddings: np
         # Encode the query
         query_embedding = model.encode([query], convert_to_numpy=True)
         
+        # Calculate cosine similarity using numpy
+        # Normalize vectors for cosine similarity calculation
+        query_norm = query_embedding / np.linalg.norm(query_embedding, axis=1, keepdims=True)
+        embeddings_norm = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+        
         # Calculate cosine similarity
-        similarities = cosine_similarity(query_embedding, embeddings)[0]
+        similarities = np.dot(query_norm, embeddings_norm.T)[0]
         
         # Get top-k indices
         top_indices = np.argsort(similarities)[::-1][:min(top_k, len(similarities))]
@@ -203,7 +207,7 @@ def generate_answer(query: str, context: List[Tuple[str, float]], raw_data: List
         logger.error(f"Error generating answer: {e}")
         return "An error occurred while generating the answer. Please try again."
 
-def initialize_rag_system(json_path: str = "transactions.json") -> Tuple[SentenceTransformer, np.ndarray, List[str], List[Dict]]:
+def initialize_rag_system(json_path: str = "transactions.json") -> Tuple[object, np.ndarray, List[str], List[Dict]]:
     """
     Initialize the complete RAG system by loading data and creating embeddings.
     
